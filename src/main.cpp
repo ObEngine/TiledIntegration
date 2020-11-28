@@ -1,3 +1,4 @@
+#include <filesystem>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -18,9 +19,9 @@ nlohmann::json::object_t load_tiled_map(const std::string& filepath)
     return tiled_json;
 }
 
-nlohmann::json::object_t load_tiled_tileset(const std::string& filepath)
+nlohmann::json::object_t load_tiled_tileset(const std::string& directory, const std::string& filename)
 {
-    std::string json_filepath = filepath;
+    std::string json_filepath = (std::filesystem::path(directory) / filename).string();
     const auto first_dot = json_filepath.find('.');
     json_filepath = std::string(json_filepath.begin(), json_filepath.begin() + first_dot);
     json_filepath += ".json";
@@ -86,8 +87,73 @@ void repeat_sprites(vili::node& sprites, const std::string& base_id,
     }
 }
 
+vili::node create_game_object(const nlohmann::json::value_type& object, const std::unordered_map<uint32_t, std::string>& objects_ids)
+{
+    vili::node game_object = vili::object{ { "type",
+        object.at("type").get<std::string>() } };
+    game_object["Requires"]
+        = vili::object{ { "x", object.at("x").get<float>() },
+              { "y", object.at("y").get<float>() }, {"width", object.at("width").get<float>()}, {"height", object.at("height").get<float>()}, {"rotation", object.at("rotation").get<float>() } };
+    if (object.contains("properties"))
+    {
+        for (const auto& object_property : object["properties"])
+        {
+            const std::string property_type = object_property["type"];
+            if (property_type == "bool")
+            {
+                game_object["Requires"]
+                    [object_property["name"].get<std::string>()]
+                = object_property["value"].get<bool>();
+            }
+            if (property_type == "int")
+            {
+                game_object["Requires"]
+                    [object_property["name"].get<std::string>()]
+                = object_property["value"].get<int>();
+            }
+            else if (property_type == "float")
+            {
+                game_object["Requires"]
+                    [object_property["name"].get<std::string>()]
+                = object_property["value"].get<float>();
+            }
+            else if (property_type == "object")
+            {
+                game_object["Requires"]
+                    [object_property["name"].get<std::string>()]
+                = objects_ids.at(object_property["value"].get<int>());
+            }
+            else if (property_type == "string" || property_type == "color"
+                || property_type == "file")
+            {
+                game_object["Requires"]
+                    [object_property["name"].get<std::string>()]
+                = object_property["value"].get<std::string>();
+            }
+        }
+    }
+    return game_object;
+}
+
+std::string replace(
+    std::string subject, const std::string& search, const std::string& replace)
+{
+    size_t pos = 0;
+    while ((pos = subject.find(search, pos)) != std::string::npos)
+    {
+        subject.replace(pos, search.length(), replace);
+        pos += replace.length();
+    }
+    return subject;
+}
+
+std::string make_object_id(const std::string& base_id, uint32_t amount_of_objects)
+{
+    return replace(base_id, "{index}", std::to_string(amount_of_objects));
+}
+
 vili::object export_obe_scene(
-    const std::string& vili_filename, nlohmann::json::object_t tmx_json)
+    const std::string& base_folder, const std::string& vili_filename, nlohmann::json::object_t tmx_json)
 {
     std::string scene_name = vili_filename;
     const auto first_dot = scene_name.find('.');
@@ -114,18 +180,28 @@ vili::object export_obe_scene(
     vili::node game_objects = vili::object {};
     vili::node collisions = vili::object {};
     vili::node sprites = vili::object {};
-    std::unordered_map<uint32_t, std::string> objectsIds;
+    std::unordered_map<uint32_t, std::string> objects_ids;
     for (const auto& tmx_layer : tmx_json["layers"])
     {
+        std::optional<int> custom_layer;
+        if (tmx_layer.contains("properties"))
+        {
+            const auto& layer_properties = tmx_layer.at("properties");
+            if (contains_property(layer_properties, "layer"))
+            {
+                custom_layer = find_property<int>(layer_properties, "layer");
+            }
+        }
+
         if (tmx_layer["type"] == "tilelayer")
         {
             std::string layer_id = tmx_layer["name"];
             layer_id = vili::utils::string::replace(layer_id, " ", "_");
             std::vector<int> layer_data = tmx_layer["data"];
             vili::array tiles_data = vili::array {};
-            for (const int tile : layer_data)
+            for (const uint32_t tile : layer_data)
             {
-                tiles_data.push_back(tile);
+                tiles_data.push_back(vili::integer{ tile });
             }
             obe_scene["Tiles"]["layers"][layer_id] = vili::object {};
             vili::node& obe_layer = obe_scene["Tiles"]["layers"][layer_id];
@@ -134,7 +210,7 @@ vili::object export_obe_scene(
             obe_layer["y"] = tmx_layer["y"].get<int>();
             obe_layer["width"] = tmx_layer["width"].get<int>();
             obe_layer["height"] = tmx_layer["height"].get<int>();
-            obe_layer["layer"] = layer--;
+            obe_layer["layer"] = custom_layer ? custom_layer.value() : layer--;
             obe_layer["visible"] = tmx_layer["visible"].get<bool>();
             obe_layer["opacity"] = tmx_layer["opacity"].get<int>();
             obe_layer["tiles"] = tiles_data;
@@ -143,54 +219,13 @@ vili::object export_obe_scene(
         {
             for (const auto& object : tmx_layer["objects"])
             {
-                if (object.contains("point") && object.at("point").get<bool>())
+                if (object.contains("type") && !object.at("type").get<std::string>().empty())
                 {
-                    const std::string gameObjectId = object.at("name").get<std::string>();
-                    objectsIds[object.at("id")] = gameObjectId;
-                    game_objects[gameObjectId] = vili::object { { "type",
-                        object.at("type").get<std::string>() } };
-                    vili::node& gameObject = game_objects[gameObjectId];
-                    gameObject["Requires"]
-                        = vili::object { { "x", object.at("x").get<float>() },
-                              { "y", object.at("y").get<float>() } };
-                    if (object.contains("properties"))
-                    {
-                        for (const auto& object_property : object["properties"])
-                        {
-                            const std::string property_type = object_property["type"];
-                            if (property_type == "int")
-                            {
-                                gameObject["Requires"]
-                                          [object_property["name"].get<std::string>()]
-                                    = object_property["value"].get<int>();
-                            }
-                            if (property_type == "int")
-                            {
-                                gameObject["Requires"]
-                                          [object_property["name"].get<std::string>()]
-                                    = object_property["value"].get<int>();
-                            }
-                            else if (property_type == "float")
-                            {
-                                gameObject["Requires"]
-                                          [object_property["name"].get<std::string>()]
-                                    = object_property["value"].get<float>();
-                            }
-                            else if (property_type == "object")
-                            {
-                                gameObject["Requires"]
-                                          [object_property["name"].get<std::string>()]
-                                    = objectsIds[object_property["value"].get<int>()];
-                            }
-                            else if (property_type == "string" || property_type == "color"
-                                || property_type == "file")
-                            {
-                                gameObject["Requires"]
-                                          [object_property["name"].get<std::string>()]
-                                    = object_property["value"].get<std::string>();
-                            }
-                        }
-                    }
+                    uint32_t object_id = object.at("id");
+                    std::string game_object_id = object.at("name");
+                    game_object_id = make_object_id(game_object_id, objects_ids.size());
+                    game_objects[game_object_id] = create_game_object(object, objects_ids);
+                    objects_ids[object_id] = game_object_id;
                 }
                 else if (object.contains("polygon"))
                 {
@@ -213,6 +248,10 @@ vili::object export_obe_scene(
                     }
                     collisions[collision_id] = new_collision;
                 }
+                else
+                {
+                    
+                }
             }
         }
         else if (tmx_layer["type"] == "imagelayer")
@@ -225,7 +264,12 @@ vili::object export_obe_scene(
             new_sprite["rect"] = vili::object { { "x", tmx_layer["x"].get<int>() },
                 { "y", tmx_layer["y"].get<int>() }, { "width", width },
                 { "height", height } };
-            new_sprite["path"] = tmx_layer["image"].get<std::string>();
+
+            std::string image_path = tmx_layer["image"].get<std::string>();
+            image_path = (std::filesystem::path(base_folder) / image_path).string();
+            image_path = std::filesystem::relative(image_path).string();
+            image_path = replace(image_path, "\\", "/");
+            new_sprite["path"] = image_path;
             if (contains_property(sprite_properties, "xTransform")
                 || contains_property(sprite_properties, "yTransform"))
             {
@@ -272,7 +316,8 @@ vili::object export_obe_scene(
         vili::node& vili_tileset = obe_scene["Tiles"]["sources"][tileset_id];
 
         vili_tileset["firstTileId"] = tmx_tileset["firstgid"].get<int>();
-        nlohmann::json::object_t tileset_json = load_tiled_tileset(tmx_tileset["source"]);
+        const std::string tileset_source = tmx_tileset["source"];
+        nlohmann::json::object_t tileset_json = load_tiled_tileset(base_folder, tileset_source);
         vili_tileset["columns"] = tileset_json["columns"].get<int>();
         vili_tileset["tilecount"] = tileset_json["tilecount"].get<int>();
         vili_tileset["margin"] = tileset_json["margin"].get<int>();
@@ -280,13 +325,18 @@ vili::object export_obe_scene(
         vili_tileset["tile"]
             = vili::object { { "width", tileset_json["tilewidth"].get<int>() },
                   { "height", tileset_json["tileheight"].get<int>() } };
+        std::string image_path = tileset_json["image"].get<std::string>();
+        image_path = (std::filesystem::path(base_folder) / image_path).string();
+        image_path = std::filesystem::relative(image_path).string();
+        image_path = replace(image_path, "\\", "/");
         vili_tileset["image"]
             = vili::object { { "width", tileset_json["imagewidth"].get<int>() },
                   { "height", tileset_json["imageheight"].get<int>() },
-                  { "path", tileset_json["image"].get<std::string>() } };
+                  { "path", image_path } };
 
-        vili::node collisions = vili::array {};
+        vili::node tileset_collisions = vili::array {};
         vili::node animated_tiles = vili::array {};
+        vili::node tilesets_game_objects = vili::array {};
         for (const auto& tmx_tile : tileset_json["tiles"])
         {
             if (tmx_tile.contains("animation"))
@@ -306,48 +356,63 @@ vili::object export_obe_scene(
             }
             if (tmx_tile.contains("objectgroup"))
             {
-                vili::node new_collision
-                    = vili::object { { "id", tmx_tile.at("id").get<int>() },
-                          { "points", vili::array {} } };
-                const auto& collision
+                const auto& object
                     = tmx_tile.at("objectgroup")
                           .at("objects")[0]; // TODO: Handle multiple collisions
-                vili::node& collision_points = new_collision.at("points");
-                if (collision.contains("polygon"))
+                
+                if (object.contains("polygon") || !object.contains("point"))
                 {
-                    const int x = collision.at("x");
-                    const int y = collision.at("y");
-                    for (const auto& tmx_collision_point : collision.at("polygon"))
+                    vili::node new_collision
+                        = vili::object{ { "id", tmx_tile.at("id").get<int>() },
+                              { "points", vili::array {} } };
+                    vili::node& collision_points = new_collision.at("points");
+                    if (object.contains("polygon"))
                     {
-                        collision_points.push(vili::object {
-                            { "x", tmx_collision_point.at("x").get<int>() + x },
-                            { "y", tmx_collision_point.at("y").get<int>() + y } });
+                        const int x = object.at("x");
+                        const int y = object.at("y");
+                        for (const auto& tmx_collision_point : object.at("polygon"))
+                        {
+                            collision_points.push(vili::object{
+                                { "x", tmx_collision_point.at("x").get<int>() + x },
+                                { "y", tmx_collision_point.at("y").get<int>() + y } });
+                        }
                     }
-                }
-                else
-                {
-                    const int x = collision.at("x");
-                    const int y = collision.at("y");
-                    const int width = collision.at("width");
-                    const int height = collision.at("height");
-                    collision_points.push(vili::object { { "x", x }, { "y", y } });
-                    collision_points.push(
-                        vili::object { { "x", x + width }, { "y", y } });
-                    collision_points.push(
-                        vili::object { { "x", x + width }, { "y", y + height } });
-                    collision_points.push(
-                        vili::object { { "x", x }, { "y", y + height } });
-                }
-                if (collision.contains("properties"))
-                {
-                    const auto& collision_properties = collision.at("properties");
-                    if (contains_property(collision_properties, "tag"))
+                    else if (!object.contains("point"))
                     {
-                        new_collision["tag"]
-                            = find_property<std::string>(collision_properties, "tag");
+                        const int x = object.at("x");
+                        const int y = object.at("y");
+                        const int width = object.at("width");
+                        const int height = object.at("height");
+                        collision_points.push(vili::object{ { "x", x }, { "y", y } });
+                        collision_points.push(
+                            vili::object{ { "x", x + width }, { "y", y } });
+                        collision_points.push(
+                            vili::object{ { "x", x + width }, { "y", y + height } });
+                        collision_points.push(
+                            vili::object{ { "x", x }, { "y", y + height } });
                     }
+                    if (object.contains("properties"))
+                    {
+                        const auto& collision_properties = object.at("properties");
+                        if (contains_property(collision_properties, "tag"))
+                        {
+                            new_collision["tag"]
+                                = find_property<std::string>(collision_properties, "tag");
+                        }
+                    }
+                    new_collision["unit"] = "ScenePixels";
+                    tileset_collisions.push(new_collision);
                 }
-                collisions.push(new_collision);
+                else if (object.contains("point") && object.at("point").get<bool>())
+                {
+                    uint32_t object_id = object.at("id").get<int>() + tmx_tileset["firstgid"].get<int>() - 1;
+                    std::string game_object_id = object.at("name");
+                    vili::node new_game_object = create_game_object(object, objects_ids);
+                    new_game_object["tileId"] = vili::integer { object_id };
+                    new_game_object["id"] = game_object_id;
+                    tilesets_game_objects.push(new_game_object);
+                }
+                
             }
         }
 
@@ -356,9 +421,14 @@ vili::object export_obe_scene(
             vili_tileset["animations"] = animated_tiles;
         }
 
-        if (!collisions.empty())
+        if (!tileset_collisions.empty())
         {
-            vili_tileset["collisions"] = collisions;
+            vili_tileset["collisions"] = tileset_collisions;
+        }
+
+        if (!tilesets_game_objects.empty())
+        {
+            vili_tileset["objects"] = tilesets_game_objects;
         }
     }
 
@@ -372,7 +442,8 @@ vili::object export_obe_scene(
 
 void run(const std::string& input_file, const std::string& output_file)
 {
-    vili::object obe_scene = export_obe_scene(output_file, load_tiled_map(input_file));
+    const std::string base_folder = std::filesystem::path(input_file).parent_path().string();
+    vili::object obe_scene = export_obe_scene(base_folder, output_file, load_tiled_map(input_file));
     vili::writer::dump_options options;
     options.array.items_per_line = obe_scene["Tiles"]["width"];
     options.object.items_per_line = 1;
@@ -401,6 +472,7 @@ TiledIntegrationArgs parse_args(int argc, char** argv)
     logger->info("[ObEngine] Tiled Integration started");
     logger->info("  - Input file : {}", args.input_file);
     logger->info("  - Output file : {}", args.output_file);
+
     if (!result)
     {
         logger->error("Error in command line: {}", result.errorMessage());
