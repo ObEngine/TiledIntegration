@@ -177,7 +177,7 @@ vili::object export_obe_scene(
 {
     std::string scene_name = vili_filename;
     auto last_slash = scene_name.find_last_of("/");
-    last_slash = (last_slash != std::string::npos) ? last_slash : 0;
+    last_slash = (last_slash != std::string::npos) ? last_slash + 1 : 0;
     const auto first_dot = scene_name.find('.', last_slash);
     scene_name = std::string(scene_name.begin(), scene_name.begin() + first_dot);
     vili::object obe_scene;
@@ -333,9 +333,9 @@ vili::object export_obe_scene(
     {
         std::string tileset_id = tmx_tileset["source"];
         auto last_slash = tileset_id.find_last_of("/");
-        last_slash = (last_slash != std::string::npos) ? last_slash : 0;
+        last_slash = (last_slash != std::string::npos) ? last_slash + 1 : 0;
         const auto first_dot = tileset_id.find('.', last_slash);
-        tileset_id = std::string(tileset_id.begin() + last_slash + 1, tileset_id.begin() + first_dot);
+        tileset_id = std::string(tileset_id.begin() + last_slash, tileset_id.begin() + first_dot);
         obe_scene["Tiles"]["sources"][tileset_id] = vili::object {};
         vili::node& vili_tileset = obe_scene["Tiles"]["sources"][tileset_id];
 
