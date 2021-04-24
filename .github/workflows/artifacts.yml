@@ -53,7 +53,7 @@ jobs:
     - name: Compile TiledIntegration
       run: cmake --build build --config Release -- /m:8
     - name: Create package
-      run: cp ./build/Release/tiled_integration.exe ./release/
+      run: tree; cp ./build/Release/tiled_integration.exe ./release/
       shell: pwsh
     - name: Package to archive
       run: Compress-Archive -path ./release/* -destinationpath obengine-tiled-integration.zip -compressionlevel optimal
