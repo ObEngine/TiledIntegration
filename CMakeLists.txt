@@ -16,6 +16,8 @@ set(TILED_INTEGRATION_SOURCES
 
 add_executable(tiled_integration ${TILED_INTEGRATION_HEADERS} ${TILED_INTEGRATION_SOURCES})
 
+target_link_libraries(tiled_integration Threads::Threads)
+
 target_link_libraries(tiled_integration nlohmann)
 target_link_libraries(tiled_integration vili)
 target_link_libraries(tiled_integration lyra)
@@ -23,22 +25,22 @@ target_link_libraries(tiled_integration spdlog)
 
 target_include_directories(tiled_integration
     PUBLIC
-        $<INSTALL_INTERFACE:include>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_EXTENSIONS OFF)
 
-if (NOT DEFINED BUILD_TESTS)
+if(NOT DEFINED BUILD_TESTS)
     set(BUILD_TESTS OFF CACHE BOOL "Build Tiled Integration Tests ?")
 endif()
 
-if (BUILD_TESTS)
+if(BUILD_TESTS)
     add_subdirectory(extlibs/catch)
     add_subdirectory(tests)
 endif()
