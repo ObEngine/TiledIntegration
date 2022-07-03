@@ -20,8 +20,10 @@ jobs:
       run: sudo apt-get install -y cmake
     - name: Install G++ and build-essential
       run: sudo apt-get install -y build-essential g++
+    - name: Run CMake on TiledIntegration
+      run: cd build && cmake ..
     - name: Compile TiledIntegration
-      run: cmake --build build --config Release -- /m:8
+      run: cmake --build build --config Release -- -j8
     - name: Create package
       run: cp ./build/tiled_integration release/
     - name: Package to archive
@@ -81,7 +83,7 @@ jobs:
     - name: Run CMake on TiledIntegration
       run: cd build && cmake ..
     - name: Compile TiledIntegration
-      run: cmake --build build --config Release -- /m:8
+      run: cmake --build build --config Release -- -j8
     - name: Create package
       run: cp ./build/tiled_integration release/
     - name: Package to archive
