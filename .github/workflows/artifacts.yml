@@ -25,7 +25,7 @@ jobs:
     - name: Compile TiledIntegration
       run: cmake --build build --config Release -- -j8
     - name: Create package
-      run: cp ./build/tiled_integration release/
+      run: mkdir release; cp ./build/tiled_integration release/
     - name: Package to archive
       run: tar -cvf obengine-tiled-integration.tar release/ ; gzip -9 obengine-tiled-integration.tar
     - name: Upload Release Asset
@@ -85,7 +85,7 @@ jobs:
     - name: Compile TiledIntegration
       run: cmake --build build --config Release -- -j8
     - name: Create package
-      run: cp ./build/tiled_integration release/
+      run: mkdir release; cp ./build/tiled_integration release/
     - name: Package to archive
       run: tar -cvf obengine-tiled-integration.tar release/ ; gzip -9 obengine-tiled-integration.tar
     - name: Upload Release Asset
