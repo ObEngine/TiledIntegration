@@ -43,47 +43,41 @@ namespace vili::parser::rules
     struct brace_based_object;
     struct array;
     struct object;
-    struct template_usage;
-    struct inline_element : peg::sor<boolean, number, integer, string, array, brace_based_object, template_usage> {};
+    struct inline_element : peg::sor<boolean, number, integer, string, array, brace_based_object> {};
     struct inline_node : peg::seq<affectation, inline_element> {};
-    struct element : peg::sor<data, array, object, template_usage> {};
+    struct element : peg::sor<data, array, object> {};
+
+    // Comments
+    struct inline_comment : peg::seq<peg::star<peg::blank>, peg::one<'#'>, peg::until<peg::eolf>> {};
+    struct multiline_comment : peg::seq<peg::string<'/', '*'>, peg::until<peg::string<'*', '/'>, peg::sor<multiline_comment, peg::any>>> {};
+    struct comment : peg::sor<inline_comment, multiline_comment> {};
+    struct space_or_comment : peg::sor<comment, peg::space> {};
+    struct endline : peg::sor<inline_comment, peg::eol> {};
+    struct multiline_comment_block : peg::seq<peg::plus<peg::pad<multiline_comment, peg::blank>>, peg::sor<endline, peg::eolf>> {};
 
     // Arrays
     struct array_separator : peg::one<','> {};
-    struct array_elements : peg::list_must<inline_element, array_separator, peg::space> {};
+    struct array_elements : peg::list_must<inline_element, array_separator, space_or_comment> {};
     struct open_array : peg::one<'['> {};
     struct close_array : peg::one<']'> {};
-    struct array : peg::seq<open_array, peg::pad_opt<array_elements, peg::space>, peg::must<close_array>> {};
+    struct array : peg::seq<open_array, peg::pad_opt<array_elements, space_or_comment>, peg::must<close_array>> {};
 
     // Objects
     struct node;
-    struct indent_based_object : peg::eol {};
+    struct indent_based_object : peg::sor<endline, peg::seq<multiline_comment, peg::eol>> {};
     struct open_object : peg::one<'{'> {};
     struct close_object : peg::one<'}'> {};
     struct object_separator : peg::one<','> {};
-    struct object_elements : peg::list_must<inline_node, object_separator, peg::space> {};
-    struct brace_based_object : peg::seq<open_object, peg::pad_opt<object_elements, peg::space>, peg::must<close_object>> {};
+    struct object_elements : peg::list_must<inline_node, object_separator, space_or_comment> {};
+    struct brace_based_object : peg::seq<open_object, peg::pad_opt<object_elements, space_or_comment>, peg::must<close_object>> {};
     struct object : peg::sor<brace_based_object, indent_based_object> {};
-
-    // Comments
-    struct inline_comment : peg::seq<peg::one<'#'>, peg::until<peg::sor<peg::eol, peg::eof>, peg::any>> {};
-
-    // Templates
-    struct template_keyword : peg::string<'t', 'e', 'm', 'p', 'l', 'a', 't', 'e'> {};
-    struct template_identifier : peg::identifier {};
-    struct template_decl_content : peg::seq<peg::blank, template_identifier, peg::pad<peg::one<':'>, peg::blank>, inline_element> {};
-    struct template_begin : peg::seq<peg::bol, template_keyword> {};
-    struct template_decl : peg::if_must<template_begin, template_decl_content> {};
-    struct template_identifier_usage : template_identifier {};
-    struct template_specialization : peg::sor<array, brace_based_object> {};
-    struct template_usage : peg::seq<template_identifier_usage, peg::opt<peg::seq<peg::star<peg::blank>, template_specialization>>> {};
 
     // Nodes
     struct node : peg::seq<affectation, peg::must<element>> {};
-    struct full_node : peg::seq<indent, node, peg::opt<peg::eol>> {};
+    struct full_node : peg::seq<indent, peg::star<multiline_comment>, node, peg::star<multiline_comment_block>, peg::opt<endline>> {};
     struct empty_line : peg::seq<peg::star<peg::blank>, peg::eol> {};
-    struct line : peg::sor<empty_line, inline_comment, template_decl, full_node> {};
-    struct vili_grammar : peg::until<peg::eof, peg::must<line>> {};
+    struct block : peg::sor<empty_line, inline_comment, multiline_comment_block, full_node> {};
+    struct vili_grammar : peg::until<peg::eof, peg::must<block>> {};
     struct grammar : peg::must<vili_grammar> {};
     // clang-format on
 }

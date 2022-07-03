@@ -20,20 +20,19 @@ namespace vili::parser
         try
         {
             peg::parse<vili::parser::rules::grammar, vili::parser::action,
-                vili::parser::control>(std::forward<input_type&&>(input), parser_state);
+                vili::parser::error_messages::control>(std::forward<input_type&&>(input), parser_state);
             // std::cout << "Begin parsing" << std::endl;
             /*peg::standard_trace<vili::parser::rules::grammar, vili::parser::action,
                 vili::parser::control>(std::forward<input_type&&>(input), parser_state);*/
         }
         catch (peg::parse_error& e)
         {
-            const auto p = e.positions.front();
+            const peg::position p = e.positions().front();
             std::stringstream ss;
             ss << e.what() << '\n'
                << input.line_at(p) << '\n'
-               << std::setw(p.byte_in_line) << ' ' << '^' << std::endl;
-            throw exceptions::parsing_error(
-                input.source(), p.line, p.byte_in_line, VILI_EXC_INFO)
+               << std::setw(p.byte) << ' ' << '^' << std::endl;
+            throw exceptions::parsing_error(input.source(), p.line, p.byte, VILI_EXC_INFO)
                 .nest(std::runtime_error(ss.str()));
         }
         /*catch (vili::exceptions::base_exception& e)
@@ -50,10 +49,11 @@ namespace vili::parser
         return parse(in, parser_state);
     }
 
-    vili::node from_file(std::string_view path, state parser_state)
+    vili::node from_file(std::string_view path)
     {
-        try 
+        try
         {
+            state parser_state;
             peg::file_input in(path);
             return parse(in, parser_state);
         }

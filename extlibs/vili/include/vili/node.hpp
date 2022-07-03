@@ -1,6 +1,8 @@
 #pragma once
 
+#include <iostream>
 #include <string>
+#include <string_view>
 #include <variant>
 
 #include <vili/exceptions.hpp>
@@ -41,7 +43,6 @@ namespace vili
     using node_data
         = std::variant<std::monostate, object, array, integer, number, boolean, string>;
     /**
-     * \helper{Lib/Internal/Vili.lua}
      * \brief Base Class for every Node in the Tree
      */
     class node
@@ -73,6 +74,10 @@ namespace vili
          * \brief Creates a node that contains a string
          */
         node(const string& value);
+        /**
+         * \brief Creates a node that contains a string
+         */
+        node(std::string_view value);
         /**
          * \brief Creates a node that contains a boolean
          */
@@ -113,19 +118,17 @@ namespace vili
         [[nodiscard]] std::string dump(bool root = false) const;
 
         /**
-         * \nobind
          * \brief Checks if the node contains a given type
          * \tparam type node_type enum value to test against the type of the underlying value of the node
          * \return true if the type is the same, false otherwise
          */
-        template <node_type type>[[nodiscard]] constexpr bool is() const;
+        template <node_type type> [[nodiscard]] constexpr bool is() const;
         /**
-         * \nobind
          * \brief Checks if the node contains a given type
          * \tparam T type to test against the type of the underlying value of the node
          * \return true if the type is the same, false otherwise
          */
-        template <class T>[[nodiscard]] constexpr bool is() const;
+        template <class T> [[nodiscard]] constexpr bool is() const;
         /**
          * \brief Checks whether the underlying value is a primitive (boolean, integer, number, string) or not
          * \return true if the type of the node is a primitive, false otherwise
@@ -178,7 +181,6 @@ namespace vili
         [[nodiscard]] bool is_object() const;
 
         /**
-         * \nobind
          * \brief Returns the node as the underlying type
          * \tparam T type you want to cast the node to
          * \throw invalid_cast exception when the type of the underlying value is not the same as T
@@ -186,13 +188,27 @@ namespace vili
          */
         template <class T> T& as();
         /**
-         * \nobind
          * \brief Returns the node as the underlying type
          * \tparam T type you want to cast the node to
          * \throw invalid_cast exception when the type of the underlying value is not the same as T
          * \return const reference to the value of the node (of type T)
          */
-        template <class T> const T& as() const;
+        template <class T>
+        [[nodiscard]] std::enable_if_t<
+            !std::is_floating_point_v<T> || !vili::PERMISSIVE_CAST, const T&>
+        as() const;
+        template <class T>
+        /**
+         * \brief Returns the node as the underlying type
+         *        This overload is only used when vili has to convert an integer to a floating point number
+         *        and therefore can't return a const reference from the internal variant
+         * \tparam T type you want to cast the node to
+         * \throw invalid_cast exception when the type of the underlying value is not the same as T
+         * \return value of the node (of type T)
+         */
+        [[nodiscard]] std::enable_if_t<
+            std::is_floating_point_v<T> && vili::PERMISSIVE_CAST, T>
+        as() const;
 
         /**
          * \brief Returns the node as a boolean
@@ -233,25 +249,67 @@ namespace vili
 
         /**
          * \brief Access element at given key
+         * \param key key of the children to access
+         * \return reference to the children at given key
          */
         node& operator[](const char* key);
+        /**
+         * \brief Access element at given key
+         * \param key key of the children to access
+         * \return reference to the children at given key
+         */
         node& operator[](const std::string& key);
+        /**
+         * \brief Access element at given index
+         * \param index index of the children to access
+         * \return reference to the children at given index
+         */
         node& operator[](size_t index);
+        /**
+         * \brief Access element at given index
+         * \param index index of the children to access
+         * \return reference to the children at given index
+         */
+        node& operator[](unsigned int index);
+        /**
+         * \brief Access element at given key
+         * \param key key of the children to access
+         * \return reference to the children at given key
+         */
+        const node& operator[](const char* key) const;
+        /**
+         * \brief Access element at given key
+         * \param key key of the children to access
+         * \return reference to the children at given key
+         */
+        const node& operator[](const std::string& key) const;
+        /**
+         * \brief Access element at given index
+         * \param index index of the children to access
+         * \return reference to the children at given index
+         */
+        const node& operator[](size_t index) const;
 
         void push(const node& value);
         /**
-         * \nobind
+         * \brief Emplace a child node at given index
+         * \tparam value_type Any type castable to a vili::node
+         * \param index Index of the node to emplace
+         * \param value Value of the node to emplace
          */
         template <class value_type> void emplace(size_t index, value_type&& value);
         /**
-         * \nobind
+         * \brief Emplace a child node at given key
+         * \tparam value_type Any type castable to a vili::node
+         * \param key Key of the node to emplace
+         * \param value Value of the node to emplace
          */
         template <class value_type>
         void emplace(const std::string& key, value_type&& value);
         void insert(size_t index, const node& value);
         void insert(const std::string& key, node value);
         void merge(node& value);
-        bool contains(const std::string& key) const;
+        [[nodiscard]] bool contains(const std::string& key) const;
 
         void erase(size_t index);
         void erase(size_t begin, size_t end);
@@ -263,19 +321,18 @@ namespace vili
         node_iterator begin();
         node_iterator end();
 
-        const_node_iterator begin() const;
-        const_node_iterator end() const;
+        [[nodiscard]] const_node_iterator begin() const;
+        [[nodiscard]] const_node_iterator end() const;
 
         object& items();
-        const object& items() const;
+        [[nodiscard]] const object& items() const;
 
         node& at(const std::string& key);
         node& at(size_t index);
-        const node& at(const std::string& key) const;
-        const node& at(size_t index) const;
+        [[nodiscard]] const node& at(const std::string& key) const;
+        [[nodiscard]] const node& at(size_t index) const;
 
         /**
-         * \nobind
          * \brief Directly access underlying variant
          * \return reference to the underlying variant
          */
@@ -287,7 +344,7 @@ namespace vili
         void clear();
 
         operator std::string_view() const;
-        operator const std::string &() const;
+        operator const std::string&() const;
         operator integer() const;
         operator int() const;
         operator number() const;
@@ -308,17 +365,34 @@ namespace vili
         return std::holds_alternative<T>(m_data);
     }
 
-    template <class T>[[nodiscard]] const T& node::as() const
+    template <class T>
+    [[nodiscard]] std::enable_if_t<!std::is_floating_point_v<T> || !vili::PERMISSIVE_CAST,
+        const T&>
+    node::as() const
     {
         if (is<T>())
             return std::get<T>(m_data);
-        if constexpr (vili::PERMISSIVE_CAST && std::is_same<T, vili::number>())
+
+        throw exceptions::invalid_cast(
+            typeid(T).name(), to_string(type()), VILI_EXC_INFO);
+    }
+
+    template <class T>
+    [[nodiscard]] std::enable_if_t<std::is_floating_point_v<T> && vili::PERMISSIVE_CAST,
+        T>
+    node::as() const
+    {
+        if (is<T>())
+            return std::get<T>(m_data);
+
+        if constexpr (vili::PERMISSIVE_CAST && std::is_floating_point_v<T>)
         {
             if (is<vili::integer>())
             {
-                return static_cast<T>(std::get<vili::integer>(m_data));
+                return T(std::get<vili::integer>(m_data));
             }
         }
+
         throw exceptions::invalid_cast(
             typeid(T).name(), to_string(type()), VILI_EXC_INFO);
     }

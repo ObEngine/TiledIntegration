@@ -3,7 +3,6 @@
 #include <exception>
 #include <optional>
 #include <string>
-#include <typeinfo>
 
 #include <fmt/format.h>
 
@@ -13,13 +12,6 @@
 
 namespace vili::exceptions
 {
-    inline std::string indent_string(
-        const std::string& input, unsigned int indent_level = 4, bool pad_left = true)
-    {
-        return (pad_left ? std::string(indent_level, ' ') : "")
-            + utils::string::replace(input, "\n", "\n" + std::string(indent_level, ' '));
-    }
-
     class debug_info
     {
     public:
@@ -44,8 +36,10 @@ namespace vili::exceptions
 
     public:
         const char* what() const noexcept override;
-        template <class... Args> void error(Args&&... args);
-        template <class... Args> void hint(Args&&... args);
+        template <class... Args>
+        void error(fmt::format_string<Args...> message, Args&&... args);
+        template <class... Args>
+        void hint(fmt::format_string<Args...> message, Args&&... args);
     };
 
     template <class exception_type> class exception : public base_exception
@@ -55,10 +49,12 @@ namespace vili::exceptions
         {
             if constexpr (VERBOSE_EXCEPTIONS)
             {
-                m_message = fmt::format("exception [{}] occured\n", exception_name);
+                m_message = fmt::format("Exception [{}] occured\n", exception_name);
+#if defined _DEBUG
                 m_message
-                    += fmt::format("  - file: '{}' (line {})\n", info.file, info.line);
-                m_message += fmt::format("  - function: {}\n", info.function);
+                    += fmt::format("  In file: '{}' (line {})\n", info.file, info.line);
+                m_message += fmt::format("  In function: {}\n", info.function);
+#endif
             }
             else
             {
@@ -70,12 +66,12 @@ namespace vili::exceptions
         {
             if constexpr (VERBOSE_EXCEPTIONS)
             {
-                m_message += "  - cause:\n";
-                m_message += indent_string(exception.what());
+                m_message += "  Cause:\n";
+                m_message += utils::string::indent(exception.what());
             }
             else
             {
-                m_message += "\n" + indent_string(exception.what());
+                m_message += "\n" + utils::string::indent(exception.what());
             }
             return *static_cast<exception_type*>(this);
         }
@@ -86,24 +82,26 @@ namespace vili::exceptions
         return m_message.c_str();
     }
 
-    template <class... Args> void base_exception::error(Args&&... args)
+    template <class... Args>
+    void base_exception::error(fmt::format_string<Args...> message, Args&&... args)
     {
-        const std::string errorMsg = fmt::format(std::forward<Args>(args)...);
+        const std::string error_msg = fmt::format(message, std::forward<Args>(args)...);
         if constexpr (VERBOSE_EXCEPTIONS)
         {
-            m_message += fmt::format("  - error: {}\n", errorMsg);
+            m_message += fmt::format("  Error: {}\n", error_msg);
         }
         else
         {
-            m_message += (": " + errorMsg);
+            m_message += (": " + error_msg);
         }
     }
-    template <class... Args> void base_exception::hint(Args&&... args)
+    template <class... Args>
+    void base_exception::hint(fmt::format_string<Args...> message, Args&&... args)
     {
-        const std::string hintMsg = fmt::format(std::forward<Args>(args)...);
+        const std::string hint_msg = fmt::format(message, std::forward<Args>(args)...);
         if constexpr (VERBOSE_EXCEPTIONS)
         {
-            m_message += fmt::format("  - hint: {}\n", hintMsg);
+            m_message += fmt::format("  Hint: {}\n", hint_msg);
         }
     }
 
@@ -186,16 +184,6 @@ namespace vili::exceptions
         }
     };
 
-    class unknown_template : public exception<unknown_template>
-    {
-    public:
-        unknown_template(std::string_view template_name, debug_info info)
-            : exception("unknown_template", info)
-        {
-            this->error("Unable to get template with name '{}'", template_name);
-        }
-    };
-
     class parsing_error : public exception<parsing_error>
     {
     public:
@@ -214,7 +202,7 @@ namespace vili::exceptions
         invalid_node_type(std::string_view node_type, debug_info info)
             : exception("invalid_node_type", info)
         {
-            this->error("'{}' is not a valid node_type");
+            this->error("'{}' is not a valid node_type", node_type);
         }
     };
 

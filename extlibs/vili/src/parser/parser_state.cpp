@@ -9,18 +9,16 @@ namespace vili::parser
     }
 
     state::state(const state& state)
+        : m_indent_base(state.m_indent_base)
+        , root(state.root)
     {
-        m_templates = state.m_templates;
-        m_indent_base = state.m_indent_base;
-        root = state.root;
         m_stack.emplace(&root, 0);
     }
 
     state::state(state&& state)
+        : m_indent_base(state.m_indent_base)
+        , root(state.root)
     {
-        m_templates = std::move(state.m_templates);
-        m_indent_base = state.m_indent_base;
-        root = state.root;
         m_stack.emplace(&root, 0);
     }
 
@@ -71,12 +69,6 @@ namespace vili::parser
         m_identifier = identifier;
     }
 
-    void state::set_active_template(std::string&& identifier)
-    {
-        m_template_identifier = identifier;
-        m_identifier = identifier;
-    }
-
     void state::open_block()
     {
         m_stack.emplace(m_last_container, 0);
@@ -100,26 +92,18 @@ namespace vili::parser
         }
         else if (top.is<object>())
         {
-            if (m_identifier.empty())
+            if (top.contains(m_identifier))
             {
-                // Template specialization
-                top.back().merge(data);
+                // Object redefinition
+                top.at(m_identifier).merge(data);
             }
             else
             {
-                if (top.contains(m_identifier))
-                {
-                    // Object redefinition
-                    top.at(m_identifier).merge(data);
-                }
-                else
-                {
-                    top.insert(m_identifier, data);
-                }
-                if (data.is_container())
-                {
-                    m_last_container = &top.at(m_identifier);
-                }
+                top.insert(m_identifier, data);
+            }
+            if (data.is_container())
+            {
+                m_last_container = &top.at(m_identifier);
             }
             m_identifier.clear();
         }
@@ -127,43 +111,5 @@ namespace vili::parser
         {
             throw std::runtime_error("Should not happen");
         }
-    }
-
-    void state::push_template()
-    {
-        node& top = *m_stack.top().item;
-        if (top.empty())
-            m_templates[m_template_identifier] = top;
-        else
-        {
-            m_templates[m_template_identifier] = top.back();
-            top.erase(m_template_identifier);
-        }
-        m_template_identifier.clear();
-    }
-
-    void state::push_template(
-        const std::string& template_name, const vili::node& node_template)
-    {
-        m_templates.emplace(template_name, node_template);
-    }
-
-    void state::specialize_template()
-    {
-        node& top = *m_stack.top().item;
-        if (top.is<vili::array>())
-        {
-            top[top.size() - 2].merge(top[top.size() - 1]);
-            top.erase(top.size() - 1);
-        }
-    }
-
-    node state::get_template(const std::string& template_name) const
-    {
-        if (const auto it = m_templates.find(template_name); it != m_templates.end())
-        {
-            return it->second;
-        }
-        throw exceptions::unknown_template(template_name, VILI_EXC_INFO);
     }
 }

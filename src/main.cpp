@@ -476,8 +476,8 @@ void run(const TiledIntegrationArgs& args)
     vili::object obe_scene = export_obe_scene(
         args.cwd, scene_folder, args.output_file, load_tiled_map(args.input_file));
     vili::writer::dump_options options;
-    options.array.items_per_line = obe_scene["Tiles"]["width"];
-    options.object.items_per_line = 1;
+    options.array.items_per_line.any = obe_scene["Tiles"]["width"];
+    options.object.items_per_line.any = 1;
     std::string scene_dump = vili::writer::dump(obe_scene, options);
     std::ofstream scene_file;
     scene_file.open(args.output_file);
