@@ -16,6 +16,7 @@ set(TILED_INTEGRATION_SOURCES
 
 add_executable(tiled_integration ${TILED_INTEGRATION_HEADERS} ${TILED_INTEGRATION_SOURCES})
 
+find_package(Threads REQUIRED)
 target_link_libraries(tiled_integration Threads::Threads)
 
 target_link_libraries(tiled_integration nlohmann)
