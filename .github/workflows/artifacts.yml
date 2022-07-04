@@ -20,10 +20,12 @@ jobs:
       run: sudo apt-get install -y cmake
     - name: Install G++ and build-essential
       run: sudo apt-get install -y build-essential g++
+    - name: Run CMake on TiledIntegration
+      run: cd build && cmake ..
     - name: Compile TiledIntegration
-      run: cd build; cmake ..; make -j8
+      run: cmake --build build --config Release -- -j8
     - name: Create package
-      run: cp ./build/Release/tiled_integration release/
+      run: mkdir release; cp ./build/tiled_integration release/
     - name: Package to archive
       run: tar -cvf obengine-tiled-integration.tar release/ ; gzip -9 obengine-tiled-integration.tar
     - name: Upload Release Asset
@@ -33,7 +35,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./obengine-tiled-integration.tar
+        asset_path: ./obengine-tiled-integration.tar.gz
         asset_name: obengine-tiled-integration.linux64.tar.gz
         asset_content_type: application/zip
 
@@ -48,7 +50,7 @@ jobs:
     - name: Create build directory
       run: mkdir build
     - name: Run CMake on TiledIntegration
-      run: cd build; cmake -G "Visual Studio 16 2019" -A x64 ..
+      run: cd build; cmake ..
       shell: pwsh
     - name: Compile TiledIntegration
       run: cmake --build build --config Release -- /m:8
@@ -81,9 +83,9 @@ jobs:
     - name: Run CMake on TiledIntegration
       run: cd build && cmake ..
     - name: Compile TiledIntegration
-      run: cd build && make -j8
+      run: cmake --build build --config Release -- -j8
     - name: Create package
-      run: cp ./build/Release/tiled_integration release/
+      run: mkdir release; cp ./build/tiled_integration release/
     - name: Package to archive
       run: tar -cvf obengine-tiled-integration.tar release/ ; gzip -9 obengine-tiled-integration.tar
     - name: Upload Release Asset
@@ -93,6 +95,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./obengine-tiled-integration.tar
+        asset_path: ./obengine-tiled-integration.tar.gz
         asset_name: obengine-tiled-integration.macos64.tar.gz
         asset_content_type: application/zip
