@@ -13,24 +13,23 @@
 #include <spdlog/sinks/ansicolor_sink.h>
 #endif
 
-namespace obe::tiled_integration
+
+std::shared_ptr<spdlog::logger> logger;
+
+void init_logger()
 {
-    std::shared_ptr<spdlog::logger> logger;
+    auto dist_sink = std::make_shared<spdlog::sinks::dist_sink_st>();
 
-    void init_logger()
-    {
-        auto dist_sink = std::make_shared<spdlog::sinks::dist_sink_st>();
+    const auto sink1 = std::make_shared<spdlog::sinks::stdout_color_sink_st>();
+    const auto sink2
+        = std::make_shared<spdlog::sinks::basic_file_sink_st>("debug.log");
 
-        const auto sink1 = std::make_shared<spdlog::sinks::stdout_color_sink_st>();
-        const auto sink2
-            = std::make_shared<spdlog::sinks::basic_file_sink_st>("debug.log");
-
-        dist_sink->add_sink(sink1);
-        dist_sink->add_sink(sink2);
-        logger = std::make_shared<spdlog::logger>("Log", dist_sink);
-        logger->set_pattern("[%H:%M:%S.%e]<%^%l%$> : %v");
-        logger->set_level(spdlog::level::info);
-        logger->flush_on(spdlog::level::info);
-        logger->info("Logger initialized");
-    }
+    dist_sink->add_sink(sink1);
+    dist_sink->add_sink(sink2);
+    logger = std::make_shared<spdlog::logger>("Log", dist_sink);
+    logger->set_pattern("[%H:%M:%S.%e]<%^%l%$> : %v");
+    logger->set_level(spdlog::level::debug);
+    logger->flush_on(spdlog::level::info);
+    logger->info("Logger initialized");
 }
+

@@ -27,6 +27,9 @@ std::string normalize_path(std::string path)
 nlohmann::json::object_t load_tiled_map(const std::string& filepath)
 {
     std::ifstream input_file(filepath);
+    std::ifstream ifs(filepath);
+    std::string content(
+        (std::istreambuf_iterator<char>(ifs)), (std::istreambuf_iterator<char>()));
     nlohmann::json tiled_json;
     input_file >> tiled_json;
 
@@ -36,9 +39,10 @@ nlohmann::json::object_t load_tiled_map(const std::string& filepath)
 nlohmann::json::object_t load_tiled_tileset(const std::string& directory, const std::string& filename)
 {
     std::string json_filepath = std::filesystem::canonical(std::filesystem::path(directory) / filename).string();
-    const auto first_dot = json_filepath.find('.');
+    const auto first_dot = json_filepath.find_last_of('.');
     json_filepath = std::string(json_filepath.begin(), json_filepath.begin() + first_dot);
     json_filepath += ".json";
+    logger->debug("    Loading tileset at path {}", json_filepath);
     std::ifstream input_file(json_filepath);
     nlohmann::json tileset_json;
     input_file >> tileset_json;
@@ -487,8 +491,6 @@ void run(const TiledIntegrationArgs& args)
 
 TiledIntegrationArgs parse_args(int argc, char** argv)
 {
-    using namespace obe::tiled_integration;
-
     TiledIntegrationArgs args;
 
     const lyra::cli cli = lyra::arg(args.input_file, "input_file").required(true)
@@ -519,7 +521,6 @@ TiledIntegrationArgs parse_args(int argc, char** argv)
 
 int main(int argc, char** argv)
 {
-    using namespace obe::tiled_integration;
     init_logger();
 
     const TiledIntegrationArgs args = parse_args(argc, argv);
