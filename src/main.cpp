@@ -105,7 +105,7 @@ void repeat_sprites(vili::node& sprites, const std::string& base_id,
 
 vili::node create_game_object(const nlohmann::json::value_type& object, const std::unordered_map<uint32_t, std::string>& objects_ids)
 {
-    const std::string object_type = object.at("type").get<std::string>();
+    const std::string object_type = object.at("class").get<std::string>();
     vili::node game_object = vili::object { { "type", object_type } };
     game_object["Requires"]
         = vili::object{ { "x", object.at("x").get<float>() },
@@ -245,7 +245,7 @@ vili::object export_obe_scene(
         {
             for (const auto& object : tmx_layer["objects"])
             {
-                if (object.contains("type") && !object.at("type").get<std::string>().empty())
+                if (object.contains("class") && !object.at("class").get<std::string>().empty())
                 {
                     uint32_t object_id = object.at("id");
                     std::string game_object_id = object.at("name");
