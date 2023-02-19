@@ -18,6 +18,21 @@ struct TiledIntegrationArgs
     std::string cwd;
 };
 
+using Version = std::vector<signed int>;
+Version tiled_version;
+
+Version str_to_version(const std::string& str_version)
+{
+    Version version;
+    std::stringstream ss_version(str_version);
+    for (std::string str_number; std::getline(ss_version, str_number, '.');)
+    {
+        version.push_back(std::stoi(str_number));
+    }
+    return version;
+}
+
+
 std::string normalize_path(std::string path)
 {
     std::replace(path.begin(), path.end(), '\\', '/');
@@ -105,7 +120,12 @@ void repeat_sprites(vili::node& sprites, const std::string& base_id,
 
 vili::node create_game_object(const nlohmann::json::value_type& object, const std::unordered_map<uint32_t, std::string>& objects_ids)
 {
-    const std::string object_type = object.at("type").get<std::string>();
+    std::string object_type_property = "class";
+    if (tiled_version < str_to_version("1.9")) {
+        object_type_property = "type";
+    }
+
+    const std::string object_type = object.at(object_type_property).get<std::string>();
     vili::node game_object = vili::object { { "type", object_type } };
     game_object["Requires"]
         = vili::object{ { "x", object.at("x").get<float>() },
@@ -192,6 +212,13 @@ vili::object export_obe_scene(
             vili::object { { "x", 0.0 }, { "y", 0.0 }, { "unit", "SceneUnits" } } },
         { "referential", "TopLeft" } };
 
+    tiled_version = str_to_version(tmx_json["version"]);
+    std::string object_type_property = "class";
+    if (tiled_version < str_to_version("1.9"))
+    {
+        object_type_property = "type";
+    }
+
     obe_scene["Tiles"] = vili::object {};
 
     obe_scene["Tiles"]["tileWidth"] = tmx_json["tilewidth"].get<int>();
@@ -245,7 +272,8 @@ vili::object export_obe_scene(
         {
             for (const auto& object : tmx_layer["objects"])
             {
-                if (object.contains("type") && !object.at("type").get<std::string>().empty())
+                if (object.contains(object_type_property)
+                    && !object.at(object_type_property).get<std::string>().empty())
                 {
                     uint32_t object_id = object.at("id");
                     std::string game_object_id = object.at("name");
